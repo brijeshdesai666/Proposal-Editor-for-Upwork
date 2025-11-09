@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 20px; /* Reduced padding to minimize space */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .word-count {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .toolbar {
+            position: fixed;
+            top: 50px; /* Adjusted to align directly below the header */
+            left: 0;
+            width: 100%;
+            z-index: 999;
+            background: #f8f9fa;
+            padding: 10px 15px; /* Reduced padding to minimize space */
+            border-bottom: 2px solid #e9ecef;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 5px;
+            padding: 0 10px;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+        }
+
+        .btn {
+            background: white;
+            border: 1px solid #dee2e6;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        .btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .case-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .case-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            margin-top: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 150px;
+            z-index: 1000;
+        }
+
+        .case-menu.show {
+            display: block;
+        }
+
+        .case-option {
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+
+        .case-option:hover {
+            background: #f8f9fa;
+        }
+
+        /* Updated styles for Find & Replace panel */
+
+        .find-replace-panel {
+            display: none;
+            background: #fff3cd;
+            padding: 15px 20px;
+            border-bottom: 2px solid #ffc107;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            position: fixed; /* Ensure it stays visible */
+            top: 100px; /* Position it below the toolbar */
+            left: 0;
+            width: 100%; /* Make it span the full width */
+            z-index: 1000; /* Ensure it appears above other elements */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional: Add shadow for better visibility */
+        }
+
+        .find-replace-panel.show {
+            display: flex; /* Ensure it becomes visible */
+        }
+
+        .editor-area {
+            margin-top: 100px; /* Adjusted to start immediately after the toolbar */
+            min-height: 500px;
+            padding: 20px; /* Reduced padding for better alignment */
+            font-size: 16px;
+            line-height: 1.6;
+            outline: none;
+            overflow-y: auto;
+            background: white; /* Added background for better readability */
+            border-radius: 6px; /* Optional: Rounded corners for the editor */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional: Subtle shadow for the editor */
+        }
+
+        .editor-area:empty:before {
+            content: 'Start typing or paste your text here...';
+            color: #adb5bd;
+        }
+
+        .highlight {
+            background-color: yellow;
+            padding: 2px 0;
+        }
+
+        .current-highlight {
+            background-color: #ffa500;
+            padding: 2px 0;
+        }
+
+        @media (max-width: 768px) {
+            .toolbar {
+                padding: 10px;
+            }
+            
+            .toolbar-group {
+                padding: 0 5px;
+            }
+
+            .btn {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            .find-replace-panel input {
+                min-width: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✏️ Text Editor</h1>
+            <div class="word-count">
+                <span id="charCount">0</span> Characters | <span id="wordCount">0</span> Words
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <button class="btn" onclick="execCmd('bold')" title="Bold (Ctrl+B)">
+                    <strong>B</strong>
+                </button>
+                <button class="btn" onclick="execCmd('italic')" title="Italic (Ctrl+I)">
+                    <em>I</em>
+                </button>
+                <button class="btn" onclick="execCmd('underline')" title="Underline (Ctrl+U)">
+                    <u>U</u>
+                </button>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="btn" onclick="execCmd('justifyLeft')" title="Align Left">≡</button>
+                <button class="btn" onclick="execCmd('justifyCenter')" title="Align Center">≡</button>
+                <button class="btn" onclick="execCmd('justifyRight')" title="Align Right">≡</button>
+                <button class="btn" onclick="execCmd('justifyFull')" title="Justify">≡</button>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="btn" onclick="execCmd('insertUnorderedList')" title="Bullet List">• List</button>
+                <button class="btn" onclick="execCmd('insertOrderedList')" title="Numbered List">1. List</button>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="btn" onclick="undo()" title="Undo (Ctrl+Z)">↶ Undo</button>
+                <button class="btn" onclick="redo()" title="Redo (Ctrl+Y)">↷ Redo</button>
+            </div>
+
+            <div class="toolbar-group case-dropdown">
+                <button class="btn" onclick="toggleCaseMenu()" title="Change Case">Aa ▼</button>
+                <div class="case-menu" id="caseMenu">
+                    <div class="case-option" onclick="changeCase('upper')">UPPERCASE</div>
+                    <div class="case-option" onclick="changeCase('lower')">lowercase</div>
+                    <div class="case-option" onclick="changeCase('title')">Title Case</div>
+                </div>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="btn" onclick="toggleFindReplace()" title="Find & Replace">🔍 Find & Replace</button>
+            </div>
+
+            <div class="toolbar-group">
+                <button class="btn" onclick="convertAsterisksToUpper()" title="Convert **text** to UPPERCASE">** → UPPER</button>
+            </div>
+        </div>
+
+        <div class="find-replace-panel" id="findReplacePanel">
+            <input type="text" id="findInput" placeholder="Find text..." oninput="findText()">
+            <input type="text" id="replaceInput" placeholder="Replace with...">
+            <button class="btn" onclick="replaceOne()">Replace</button>
+            <button class="btn" onclick="replaceAll()">Replace All</button>
+            <button class="btn" onclick="previousMatch()">◀ Previous</button>
+            <button class="btn" onclick="nextMatch()">Next ▶</button>
+            <span id="matchCount" style="margin-left: 10px; font-weight: 600;"></span>
+            <button class="btn close-btn" onclick="toggleFindReplace()">✕ Close</button>
+        </div>
+
+        <div class="editor-area" id="editor" contenteditable="true"></div>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        let matches = [];
+        let currentMatchIndex = -1;
+        let history = [];
+        let historyStep = -1;
+        let savedSelection = null;
+
+        // Save state for undo/redo
+        function saveState() {
+            historyStep++;
+            if (historyStep < history.length) {
+                history.length = historyStep;
+            }
+            history.push(editor.innerHTML);
+        }
+
+        // Initial state
+        saveState();
+
+        // Save state on input
+        let typingTimer;
+        editor.addEventListener('input', function() {
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                saveState();
+            }, 500);
+            updateCount();
+        });
+
+        // Paste as plain text only (preserve spaces and line breaks)
+        editor.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const text = e.clipboardData.getData('text/plain');
+            
+            // Split by lines and insert with proper breaks
+            const lines = text.split('\n');
+            const fragment = document.createDocumentFragment();
+            
+            lines.forEach((line, index) => {
+                fragment.appendChild(document.createTextNode(line));
+                if (index < lines.length - 1) {
+                    fragment.appendChild(document.createElement('br'));
+                }
+            });
+            
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(fragment);
+                
+                // Move cursor to end
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+            
+            updateCount();
+        });
+
+        // Update word and character count
+        editor.addEventListener('input', updateCount);
+
+        function updateCount() {
+            const text = editor.innerText || '';
+            const charCount = text.length;
+            const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+            
+            document.getElementById('charCount').textContent = charCount;
+            document.getElementById('wordCount').textContent = wordCount;
+        }
+
+        // Execute formatting commands
+        function execCmd(command) {
+            document.execCommand(command, false, null);
+            editor.focus();
+            saveState(); // Save state after executing a command
+        }
+
+        // Updated undo and redo functions
+
+        function undo() {
+            if (historyStep > 0) {
+                historyStep--;
+                editor.innerHTML = history[historyStep];
+                updateCount();
+            }
+        }
+
+        function redo() {
+            if (historyStep < history.length - 1) {
+                historyStep++;
+                editor.innerHTML = history[historyStep];
+                updateCount();
+            }
+        }
+
+        // Save the current selection
+        function saveSelection() {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                savedSelection = selection.getRangeAt(0);
+            }
+        }
+
+        // Restore the saved selection
+        function restoreSelection() {
+            if (savedSelection) {
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(savedSelection);
+            }
+        }
+
+        // Toggle case menu and save selection
+        function toggleCaseMenu() {
+            const menu = document.getElementById('caseMenu');
+            menu.classList.toggle('show');
+            if (menu.classList.contains('show')) {
+                saveSelection(); // Save the selection when the menu is opened
+            }
+        }
+
+        // Close case menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const caseDropdown = document.querySelector('.case-dropdown');
+            if (!caseDropdown.contains(e.target)) {
+                document.getElementById('caseMenu').classList.remove('show');
+            }
+        });
+
+        // Change case of selected text
+        function changeCase(type) {
+            restoreSelection(); // Restore the selection before making changes
+
+            const selection = window.getSelection();
+            if (!selection.rangeCount || selection.toString().trim().length === 0) {
+                alert('Please select text first!');
+                return;
+            }
+
+            const range = selection.getRangeAt(0);
+            const selectedText = selection.toString();
+            let newText = '';
+
+            if (type === 'upper') {
+                newText = selectedText.toUpperCase();
+            } else if (type === 'lower') {
+                newText = selectedText.toLowerCase();
+            } else if (type === 'title') {
+                newText = selectedText.replace(/\b\w+/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+            }
+
+            // Replace the selected text while preserving the selection
+            const tempSpan = document.createElement('span');
+            tempSpan.textContent = newText;
+            range.deleteContents();
+            range.insertNode(tempSpan);
+
+            // Restore the selection
+            selection.removeAllRanges();
+            const newRange = document.createRange();
+            newRange.selectNodeContents(tempSpan);
+            selection.addRange(newRange);
+
+            updateCount();
+            editor.focus();
+            saveState(); // Save state after changing case
+        }
+
+        // Toggle Find & Replace panel
+        function toggleFindReplace() {
+            const panel = document.getElementById('findReplacePanel');
+            const editorArea = document.getElementById('editor');
+
+            if (panel.classList.contains('show')) {
+                panel.classList.remove('show');
+                editorArea.style.marginTop = '100px'; // Reset margin when menu is hidden
+            } else {
+                panel.classList.add('show');
+                editorArea.style.marginTop = '160px'; // Adjust margin to prevent text from hiding behind the menu
+                document.getElementById('findInput').focus(); // Focus on the input field
+            }
+        }
+
+        // Find text and highlight
+        function findText() {
+            const searchText = document.getElementById('findInput').value;
+            clearHighlights();
+            matches = [];
+            currentMatchIndex = -1;
+
+            if (searchText === '') {
+                document.getElementById('matchCount').textContent = '';
+                return;
+            }
+
+            const content = editor.innerHTML;
+            const regex = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            let match;
+            let tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+
+            function highlightInNode(node) {
+                if (node.nodeType === 3) { // Text node
+                    const text = node.textContent;
+                    const regex = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                    
+                    if (regex.test(text)) {
+                        const span = document.createElement('span');
+                        span.innerHTML = text.replace(regex, match => {
+                            matches.push(match);
+                            return `<span class="highlight">${match}</span>`;
+                        });
+                        node.parentNode.replaceChild(span, node);
+                    }
+                } else if (node.nodeType === 1 && node.nodeName !== 'SCRIPT' && node.nodeName !== 'STYLE') {
+                    Array.from(node.childNodes).forEach(highlightInNode);
+                }
+            }
+
+            highlightInNode(tempDiv);
+            editor.innerHTML = tempDiv.innerHTML;
+
+            if (matches.length > 0) {
+                currentMatchIndex = 0;
+                highlightCurrentMatch();
+                document.getElementById('matchCount').textContent = `${currentMatchIndex + 1} of ${matches.length}`;
+            } else {
+                document.getElementById('matchCount').textContent = 'No matches found';
+            }
+        }
+
+        function clearHighlights() {
+            const highlights = editor.querySelectorAll('.highlight, .current-highlight');
+            highlights.forEach(span => {
+                const parent = span.parentNode;
+                parent.replaceChild(document.createTextNode(span.textContent), span);
+                parent.normalize();
+            });
+        }
+
+        function highlightCurrentMatch() {
+            const highlights = editor.querySelectorAll('.highlight');
+            highlights.forEach((span, index) => {
+                if (index === currentMatchIndex) {
+                    span.classList.add('current-highlight');
+                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    span.classList.remove('current-highlight');
+                }
+            });
+        }
+
+        function nextMatch() {
+            if (matches.length === 0) return;
+            currentMatchIndex = (currentMatchIndex + 1) % matches.length;
+            highlightCurrentMatch();
+            document.getElementById('matchCount').textContent = `${currentMatchIndex + 1} of ${matches.length}`;
+        }
+
+        function previousMatch() {
+            if (matches.length === 0) return;
+            currentMatchIndex = (currentMatchIndex - 1 + matches.length) % matches.length;
+            highlightCurrentMatch();
+            document.getElementById('matchCount').textContent = `${currentMatchIndex + 1} of ${matches.length}`;
+        }
+
+        // Replace one match
+        function replaceOne() {
+            const replaceText = document.getElementById('replaceInput').value;
+            const highlights = editor.querySelectorAll('.current-highlight');
+            
+            if (highlights.length > 0) {
+                const span = highlights[0];
+                span.textContent = replaceText;
+                span.classList.remove('highlight', 'current-highlight');
+                
+                // Refresh the search
+                setTimeout(() => {
+                    findText();
+                }, 10);
+                saveState(); // Save state after replacing one match
+            }
+        }
+
+        // Replace all matches
+        function replaceAll() {
+            const searchText = document.getElementById('findInput').value;
+            const replaceText = document.getElementById('replaceInput').value;
+
+            if (searchText === '') {
+                alert('Please enter text to find!');
+                return;
+            }
+
+            const regex = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+
+            function replaceInNode(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    node.textContent = node.textContent.replace(regex, replaceText);
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    Array.from(node.childNodes).forEach(replaceInNode);
+                }
+            }
+
+            replaceInNode(editor);
+            clearHighlights();
+            matches = [];
+            currentMatchIndex = -1;
+            document.getElementById('matchCount').textContent = 'All replaced!';
+            updateCount();
+            saveState(); // Save state after replacing all matches
+        }
+
+        // Keyboard shortcuts
+        editor.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') {
+                    e.preventDefault();
+                    undo();
+                } else if (e.key === 'y') {
+                    e.preventDefault();
+                    redo();
+                } else if (e.key === 'U' && e.shiftKey) { // Shortcut for UPPERCASE
+                    e.preventDefault();
+                    changeCase('upper');
+                } else if (e.key === 'L' && e.shiftKey) { // Shortcut for LOWERCASE
+                    e.preventDefault();
+                    changeCase('lower');
+                }
+            }
+        });
+
+        // Convert text between ** ** to UPPERCASE
+        function convertAsterisksToUpper() {
+            function processNode(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const regex = /\*\*([^*]+)\*\*/g;
+                    if (regex.test(node.textContent)) {
+                        node.textContent = node.textContent.replace(regex, function(match, p1) {
+                            return p1.toUpperCase();
+                        });
+                        return true;
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    let found = false;
+                    Array.from(node.childNodes).forEach(child => {
+                        if (processNode(child)) {
+                            found = true;
+                        }
+                    });
+                    return found;
+                }
+                return false;
+            }
+
+            const matchFound = processNode(editor);
+
+            if (matchFound) {
+                updateCount();
+                saveState(); // Save state after converting text
+                alert('Text between ** ** converted to UPPERCASE!');
+            } else {
+                alert('No text found between ** **');
+            }
+        }
+
+        // Initialize count
+        updateCount();
+    </script>
+</body>
+</html>
